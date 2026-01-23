@@ -37,13 +37,6 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 export const maxDuration = 60;
 
 console.log("TAVILY_API_KEY loaded?", Boolean(process.env.TAVILY_API_KEY));
-export async function GET() {
-  return Response.json({
-    hasTavily: Boolean(process.env.TAVILY_API_KEY),
-    tavilyPrefix: process.env.TAVILY_API_KEY?.slice(0, 8) ?? null,
-    nodeEnv: process.env.NODE_ENV,
-  });
-}
 
 /* =========================
    Tavily Search (Relevance-style)
@@ -168,18 +161,6 @@ function toEvidencePack(buckets: SearchBucket[]): string {
   return lines.join("\n");
 }
 
-function buildTopLinks(buckets: SearchBucket[]) {
-  const top: { bucket: SearchBucket["bucket"]; title: string; url: string }[] =
-    [];
-  for (const b of buckets) {
-    for (const it of b.items.slice(0, 5)) {
-      if (it?.url) top.push({ bucket: b.bucket, title: it.title, url: it.url });
-    }
-  }
-  const seen = new Set<string>();
-  return top.filter((x) => (seen.has(x.url) ? false : (seen.add(x.url), true)));
-}
-
 /* =========================
    Resumable stream
 ========================= */
@@ -288,18 +269,6 @@ export async function POST(request: Request) {
         let searchBuckets: SearchBucket[] = [];
 
         if (needsSearch) {
-          dataStream.write({
-            type: "data-sources",
-            data: {
-              stage: "search_start",
-              used_search: true,
-              cited: false,
-              sources: ["forum", "youtube", "tsb", "web"],
-              top_links: [],
-              errors: [],
-            },
-          });
-
           const plan: Array<{
             bucket: SearchBucket["bucket"];
             includeDomains?: string[];
@@ -327,7 +296,6 @@ export async function POST(request: Request) {
           ];
 
           for (const step of plan) {
-            const startedAt = Date.now();
             try {
               const items = await tavilySearch({
                 query: step.query,
@@ -340,20 +308,6 @@ export async function POST(request: Request) {
                 query: step.query,
                 items,
               });
-
-              dataStream.write({
-                type: "data-sources",
-                data: {
-                  stage: "bucket_done",
-                  bucket: step.bucket,
-                  latency_ms: Date.now() - startedAt,
-                  used_search: true,
-                  cited: false,
-                  sources: ["forum", "youtube", "tsb", "web"],
-                  top_links: buildTopLinks(searchBuckets),
-                  errors: [],
-                },
-              });
             } catch (e: any) {
               searchBuckets.push({
                 bucket: step.bucket,
@@ -361,36 +315,14 @@ export async function POST(request: Request) {
                 items: [],
                 error: e?.message ?? String(e),
               });
-
-              dataStream.write({
-                type: "data-sources",
-                data: {
-                  stage: "bucket_error",
-                  bucket: step.bucket,
-                  used_search: true,
-                  cited: false,
-                  sources: ["forum", "youtube", "tsb", "web"],
-                  top_links: buildTopLinks(searchBuckets),
-                  errors: [e?.message ?? String(e)],
-                },
-              });
             }
           }
 
-          const topLinks = buildTopLinks(searchBuckets);
-          if (topLinks.length === 0) {
-            // 防止出现 used_search=true 但 sources 空的“假搜索”
-            dataStream.write({
-              type: "data-sources",
-              data: {
-                stage: "search_failed",
-                used_search: false,
-                cited: false,
-                sources: [],
-                top_links: [],
-                errors: ["Search returned no results."],
-              },
-            });
+          const anyResult = searchBuckets.some(
+            (b) => (b.items?.length ?? 0) > 0
+          );
+          if (!anyResult) {
+            // 如果全空，就当没搜到，不注入 evidence
             searchBuckets = [];
           }
         }
@@ -443,20 +375,6 @@ export async function POST(request: Request) {
         });
 
         dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
-
-        if (searchBuckets.length > 0) {
-          dataStream.write({
-            type: "data-sources",
-            data: {
-              stage: "final",
-              used_search: true,
-              cited: true,
-              sources: ["forum", "youtube", "tsb", "web"],
-              top_links: buildTopLinks(searchBuckets),
-              errors: [],
-            },
-          });
-        }
 
         if (titlePromise) {
           const title = await titlePromise;

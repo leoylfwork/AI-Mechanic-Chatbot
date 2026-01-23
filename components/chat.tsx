@@ -135,7 +135,7 @@ export function Chat({
       },
     }),
     onData: (dataPart) => {
-      if ((dataPart as any)?.type === "data-sources") {
+      if ((dataPart as any)?.type === "message-metadata") {
         setSourcesState(dataPart.data);
       }
 

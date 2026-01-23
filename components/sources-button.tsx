@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { useDataStream } from "./data-stream-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +9,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useDataStream } from "./data-stream-provider";
 
 type SourceBucket = "forum" | "youtube" | "tsb" | "web";
 
@@ -33,10 +33,12 @@ const bucketLabels: Record<SourceBucket, string> = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const getLatestSources = (dataStream: Array<{ type: string; data?: unknown }>) => {
+const getLatestSources = (
+  dataStream: Array<{ type: string; data?: unknown }>
+) => {
   for (let index = dataStream.length - 1; index >= 0; index -= 1) {
     const part = dataStream[index];
-    if (part?.type !== "data-sources") {
+    if (part?.type !== "message-metadata") {
       continue;
     }
 
@@ -130,7 +132,9 @@ export const SourcesButton = () => {
 
               return (
                 <div className="flex flex-col gap-2" key={bucket}>
-                  <h3 className="font-medium text-sm">{bucketLabels[bucket]}</h3>
+                  <h3 className="font-medium text-sm">
+                    {bucketLabels[bucket]}
+                  </h3>
                   <div className="flex flex-col gap-2">
                     {links.map((link) => (
                       <a

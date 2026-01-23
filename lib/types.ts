@@ -48,8 +48,8 @@ export type CustomUIDataTypes = {
   // ✅ 后端现在发的是 data-chat-title（否则会红）
   "data-chat-title": string;
 
-  // ✅ Relevance-style sources 事件（否则 data-sources 会红）
-  "data-sources": {
+  // ✅ Relevance-style sources 事件（否则 message-metadata 会红）
+  "message-metadata": {
     stage:
       | "search_start"
       | "bucket_done"
