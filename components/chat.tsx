@@ -29,6 +29,7 @@ import { useDataStream } from "./data-stream-provider";
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
+import { SourcesButton } from "./sources-button";
 import { toast } from "./toast";
 import type { VisibilityType } from "./visibility-selector";
 
@@ -56,22 +57,24 @@ export function Chat({
 
   const { mutate } = useSWRConfig();
 
-  // Handle browser back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
-      // When user navigates back/forward, refresh to sync with URL
       router.refresh();
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [router]);
+
   const { setDataStream } = useDataStream();
 
   const [input, setInput] = useState<string>("");
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const currentModelIdRef = useRef(currentModelId);
+
+  // ✅ 必须在 useChat 之前声明（否则 onData 里会引用未初始化的 setSourcesState）
+  const [sourcesState, setSourcesState] = useState<any>(null);
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
@@ -132,7 +135,12 @@ export function Chat({
       },
     }),
     onData: (dataPart) => {
-      setDataStream((ds) => (ds ? [...ds, dataPart] : []));
+      if ((dataPart as any)?.type === "data-sources") {
+        setSourcesState(dataPart.data);
+      }
+
+      // ✅ ds 为空时别返回 []，否则第一条丢了
+      setDataStream((ds) => (ds ? [...ds, dataPart] : [dataPart]));
     },
     onFinish: () => {
       mutate(unstable_serialize(getChatHistoryPaginationKey));
@@ -155,7 +163,6 @@ export function Chat({
 
   const searchParams = useSearchParams();
   const query = searchParams.get("query");
-
   const [hasAppendedQuery, setHasAppendedQuery] = useState(false);
 
   useEffect(() => {
@@ -194,6 +201,12 @@ export function Chat({
           selectedVisibilityType={initialVisibilityType}
         />
 
+        {sourcesState?.used_search && (
+          <div className="mx-auto w-full max-w-4xl px-2">
+            <SourcesButton />
+          </div>
+        )}
+
         <Messages
           addToolApprovalResponse={addToolApprovalResponse}
           chatId={id}
@@ -201,7 +214,8 @@ export function Chat({
           isReadonly={isReadonly}
           messages={messages}
           regenerate={regenerate}
-          selectedModelId={initialChatModel}
+          // ✅ 用 currentModelId（否则切模型 UI 显示会不对）
+          selectedModelId={currentModelId}
           setMessages={setMessages}
           status={status}
           votes={votes}

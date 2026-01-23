@@ -37,9 +37,9 @@ Do not update document right after creating it. Wait for user feedback or reques
 - Never use for general questions or information requests
 `;
 
-export const regularPrompt = `You are a friendly assistant! Keep your responses concise and helpful.
-
-When asked to write, create, or help with something, just do it directly. Don't ask clarifying questions unless absolutely necessary - make reasonable assumptions and proceed with the task.`;
+export const regularPrompt = `
+You are a helpful AI assistant. Always use the perplexity_search tool to find accurate information.
+`;
 
 export type RequestHints = {
   latitude: Geo["latitude"];

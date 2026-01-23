@@ -41,7 +41,33 @@ export type CustomUIDataTypes = {
   kind: ArtifactKind;
   clear: null;
   finish: null;
+
+  // 你已有的
   "chat-title": string;
+
+  // ✅ 后端现在发的是 data-chat-title（否则会红）
+  "data-chat-title": string;
+
+  // ✅ Relevance-style sources 事件（否则 data-sources 会红）
+  "data-sources": {
+    stage:
+      | "search_start"
+      | "bucket_done"
+      | "bucket_error"
+      | "search_failed"
+      | "final";
+    used_search: boolean;
+    cited: boolean;
+    sources: Array<"forum" | "youtube" | "tsb" | "web">;
+    top_links: Array<{
+      bucket: "forum" | "youtube" | "tsb" | "web";
+      title: string;
+      url: string;
+    }>;
+    bucket?: "forum" | "youtube" | "tsb" | "web";
+    latency_ms?: number;
+    errors?: string[];
+  };
 };
 
 export type ChatMessage = UIMessage<
