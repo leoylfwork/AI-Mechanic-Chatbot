@@ -64,44 +64,6 @@ function mustSearch(userText: string) {
   );
 }
 
-type PerplexitySearchResult = {
-  title: string;
-  url: string;
-  snippet?: string;
-  date?: string;
-  lastUpdated?: string;
-};
-
-type PerplexitySearchOutput =
-  | {
-      results: PerplexitySearchResult[];
-      id: string;
-    }
-  | {
-      error:
-        | "api_error"
-        | "rate_limit"
-        | "timeout"
-        | "invalid_input"
-        | "unknown";
-      statusCode?: number;
-      message: string;
-    };
-
-const isPerplexitySearchOutput = (
-  output: unknown
-): output is PerplexitySearchOutput => {
-  if (!output || typeof output !== "object") {
-    return false;
-  }
-
-  if ("results" in output) {
-    return Array.isArray((output as { results?: unknown }).results);
-  }
-
-  return "error" in output;
-};
-
 /* =========================
    POST
 ========================= */
@@ -189,6 +151,7 @@ export async function POST(request: Request) {
 
       execute: async ({ writer: dataStream }) => {
         console.log("🔥 HIT execute");
+        console.log("MODEL =", getLanguageModel(selectedChatModel));
         console.log("USER_TEXT =", userText);
         console.log("FORCE_SEARCH =", forceSearch);
         // -------------------------
@@ -203,7 +166,7 @@ export async function POST(request: Request) {
           : undefined;
 
         const result = streamText({
-          model: getLanguageModel(selectedChatModel),
+          model: gateway.models.openai("gpt-5.2"),
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
           tools,
@@ -219,72 +182,11 @@ export async function POST(request: Request) {
         });
 
         const uiStream = result.toUIMessageStream({ sendReasoning: true });
-        const toolCallNames = new Map<string, string>();
 
         for await (const part of uiStream as any) {
-          if (
-            part.type === "tool-input-start" ||
-            part.type === "tool-input-available"
-          ) {
-            toolCallNames.set(part.toolCallId, part.toolName);
+          if (part.type === "tool-call") {
             console.log("🛠 TOOL CALLED:", part.toolName);
-            if (part.toolName === "perplexity_search") {
-              dataStream.write({
-                type: "message-metadata",
-                data: {
-                  stage: "search_start",
-                  used_search: true,
-                  cited: false,
-                  sources: ["web"],
-                  top_links: [],
-                },
-              });
-            }
           }
-
-          if (part.type === "tool-output-available") {
-            const toolName = toolCallNames.get(part.toolCallId);
-            if (
-              toolName === "perplexity_search" &&
-              isPerplexitySearchOutput(part.output) &&
-              "results" in part.output
-            ) {
-              const topLinks = part.output.results.map((result) => ({
-                bucket: "web" as const,
-                title: result.title,
-                url: result.url,
-              }));
-
-              dataStream.write({
-                type: "message-metadata",
-                data: {
-                  stage: "final",
-                  used_search: true,
-                  cited: topLinks.length > 0,
-                  sources: topLinks.length > 0 ? ["web"] : [],
-                  top_links: topLinks,
-                },
-              });
-            }
-          }
-
-          if (part.type === "tool-output-error") {
-            const toolName = toolCallNames.get(part.toolCallId);
-            if (toolName === "perplexity_search") {
-              dataStream.write({
-                type: "message-metadata",
-                data: {
-                  stage: "search_failed",
-                  used_search: true,
-                  cited: false,
-                  sources: [],
-                  top_links: [],
-                  errors: [part.errorText],
-                },
-              });
-            }
-          }
-
           dataStream.write(part);
         }
 
@@ -345,11 +247,15 @@ export async function POST(request: Request) {
       stream,
 
       async consumeSseStream({ stream: sseStream }) {
-        if (!process.env.REDIS_URL) return;
+        if (!process.env.REDIS_URL) {
+          return;
+        }
 
         try {
           const streamContext = getStreamContext();
-          if (!streamContext) return;
+          if (!streamContext) {
+            return;
+          }
 
           const streamId = generateId();
           await createStreamId({ streamId, chatId: id });
