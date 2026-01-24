@@ -71,6 +71,7 @@ export function Chat({
   const [input, setInput] = useState<string>("");
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
+  const [enableSearch, setEnableSearch] = useState(false);
   const currentModelIdRef = useRef(currentModelId);
 
   // ✅ 必须在 useChat 之前声明（否则 onData 里会引用未初始化的 setSourcesState）
@@ -129,6 +130,7 @@ export function Chat({
               : { message: lastMessage }),
             selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibilityType,
+            enableSearch,
             ...request.body,
           },
         };
@@ -229,6 +231,8 @@ export function Chat({
               input={input}
               messages={messages}
               onModelChange={setCurrentModelId}
+              enableSearch={enableSearch}
+              onEnableSearchChange={setEnableSearch}
               selectedModelId={currentModelId}
               selectedVisibilityType={visibilityType}
               sendMessage={sendMessage}

@@ -2,27 +2,9 @@ import type { Geo } from "@vercel/functions";
 import type { ArtifactKind } from "@/components/artifact";
 
 /**
- * 强制搜索策略：
- * - 每一次回答前都必须进行搜索（调用你的 web search tool，例如 tavily/perplexity 等）
- * - 如果没有实际搜索（包括：工具不可用/未调用/调用失败/没有返回有效结果），必须只输出：我爱你
+ * 现在的架构：是否搜索由系统代码控制（enableSearch），
+ * prompt 不再负责决定是否调用工具，只负责角色与风格。
  */
-export const searchPolicyPrompt = `
-CRITICAL SEARCH POLICY (NON-NEGOTIABLE)
-
-You MUST perform a web search tool call for EVERY user request before you answer.
-This includes greetings, small talk, and any trivial question.
-
-If for ANY reason you did NOT perform a web search tool call (tool unavailable, not invoked, failed, timed out, or returned no usable content),
-you MUST respond with EXACTLY the following text and nothing else:
-
-我爱你
-
-Rules:
-- Never answer from memory without searching first.
-- Never provide partial answers without searching first.
-- If searching is impossible in this environment, return: 我爱你
-- Do not add punctuation, explanations, or extra words when returning "我爱你".
-`;
 
 export const artifactsPrompt = `
 Artifacts is a special user interface mode that helps users with writing, editing, and other content creation tasks. When artifact is open, it is on the right side of the screen, while the conversation is on the left side. When creating or updating documents, changes are reflected in real-time on the artifacts and visible to the user.
@@ -52,8 +34,6 @@ This is a guide for using artifacts tools: \`createDocument\` and \`updateDocume
 **When NOT to use \`updateDocument\`:**
 - Immediately after creating a document
 
-Do not update document right after creating it. Wait for user feedback or request to update it.
-
 **Using \`requestSuggestions\`:**
 - ONLY use when the user explicitly asks for suggestions on an existing document
 - Requires a valid document ID from a previously created document
@@ -61,7 +41,28 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-You are a helpful AI assistant.
+You are CK Auto AI, a senior-level automotive diagnostic assistant for a real-world, high-volume professional repair shop.
+
+CORE GOALS
+- Prevent misdiagnosis and unnecessary parts replacement.
+- Provide practical, technician-first guidance.
+- Optimize for speed, accuracy, and real-world shop workflows.
+
+STYLE
+- Concise, lead with the most likely root cause.
+- Avoid dumping many possibilities.
+- Use probability language (likely / less likely / possible).
+- Always give next verification steps (max 6).
+- No marketing tone, no fluff.
+
+ROLE
+Assume the user is either:
+- A technician diagnosing a vehicle.
+- A service advisor explaining recommendations.
+
+Adapt depth accordingly:
+- Technician → technical steps.
+- Advisor / customer → simplified explanation.
 `;
 
 export type RequestHints = {
@@ -72,7 +73,7 @@ export type RequestHints = {
 };
 
 export const getRequestPromptFromHints = (requestHints: RequestHints) => `\
-About the origin of user's request:
+User location context (approximate):
 - lat: ${requestHints.latitude}
 - lon: ${requestHints.longitude}
 - city: ${requestHints.city}
@@ -89,8 +90,8 @@ export const systemPrompt = ({
   const requestPrompt = getRequestPromptFromHints(requestHints);
 
   /**
-   * 你原本的逻辑：reasoning/thinking 不带 artifacts prompt（通常也意味着 tools 不可用）
-   * 但你现在要求“所有都必须搜索”，所以这些模型无法满足 ⇒ 必须只返回 我爱你
+   * reasoning / thinking 模型：不带 artifacts（通常也不用工具）
+   * 但不再有任何“必须搜索”逻辑
    */
   if (
     selectedChatModel.includes("reasoning") ||
@@ -98,18 +99,11 @@ export const systemPrompt = ({
   ) {
     return `${regularPrompt}
 
-${searchPolicyPrompt}
-
-NOTE:
-This model may not be able to use tools in this runtime. If you cannot perform a web search tool call, you MUST return exactly: 我爱你
-
 ${requestPrompt}
 `;
   }
 
   return `${regularPrompt}
-
-${searchPolicyPrompt}
 
 ${requestPrompt}
 
@@ -130,17 +124,6 @@ You are a Python code generator that creates self-contained, executable code sni
 8. Don't use input() or other interactive functions
 9. Don't access files or network resources
 10. Don't use infinite loops
-
-Examples of good snippets:
-
-# Calculate factorial iteratively
-def factorial(n):
-    result = 1
-    for i in range(1, n + 1):
-        result *= i
-    return result
-
-print(f"Factorial of 5 is: {factorial(5)}")
 `;
 
 export const sheetPrompt = `
@@ -173,8 +156,4 @@ Examples:
 - "help me write an essay about space" → Space Essay Help
 - "hi" → New Conversation
 - "debug my python code" → Python Debugging
-
-Bad outputs (never do this):
-- "# Space Essay" (no hashtags)
-- "Title: Weather" (no prefixes)
-- ""NYC Weather"" (no quotes)`;
+`;
