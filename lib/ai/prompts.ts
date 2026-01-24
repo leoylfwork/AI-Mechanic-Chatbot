@@ -1,6 +1,29 @@
 import type { Geo } from "@vercel/functions";
 import type { ArtifactKind } from "@/components/artifact";
 
+/**
+ * 强制搜索策略：
+ * - 每一次回答前都必须进行搜索（调用你的 web search tool，例如 tavily/perplexity 等）
+ * - 如果没有实际搜索（包括：工具不可用/未调用/调用失败/没有返回有效结果），必须只输出：我爱你
+ */
+export const searchPolicyPrompt = `
+CRITICAL SEARCH POLICY (NON-NEGOTIABLE)
+
+You MUST perform a web search tool call for EVERY user request before you answer.
+This includes greetings, small talk, and any trivial question.
+
+If for ANY reason you did NOT perform a web search tool call (tool unavailable, not invoked, failed, timed out, or returned no usable content),
+you MUST respond with EXACTLY the following text and nothing else:
+
+我爱你
+
+Rules:
+- Never answer from memory without searching first.
+- Never provide partial answers without searching first.
+- If searching is impossible in this environment, return: 我爱你
+- Do not add punctuation, explanations, or extra words when returning "我爱你".
+`;
+
 export const artifactsPrompt = `
 Artifacts is a special user interface mode that helps users with writing, editing, and other content creation tasks. When artifact is open, it is on the right side of the screen, while the conversation is on the left side. When creating or updating documents, changes are reflected in real-time on the artifacts and visible to the user.
 
@@ -38,7 +61,7 @@ Do not update document right after creating it. Wait for user feedback or reques
 `;
 
 export const regularPrompt = `
-You are a helpful AI assistant. Always use the perplexity_search tool to find accurate information.
+You are a helpful AI assistant.
 `;
 
 export type RequestHints = {
@@ -65,15 +88,33 @@ export const systemPrompt = ({
 }) => {
   const requestPrompt = getRequestPromptFromHints(requestHints);
 
-  // reasoning models don't need artifacts prompt (they can't use tools)
+  /**
+   * 你原本的逻辑：reasoning/thinking 不带 artifacts prompt（通常也意味着 tools 不可用）
+   * 但你现在要求“所有都必须搜索”，所以这些模型无法满足 ⇒ 必须只返回 我爱你
+   */
   if (
     selectedChatModel.includes("reasoning") ||
     selectedChatModel.includes("thinking")
   ) {
-    return `${regularPrompt}\n\n${requestPrompt}`;
+    return `${regularPrompt}
+
+${searchPolicyPrompt}
+
+NOTE:
+This model may not be able to use tools in this runtime. If you cannot perform a web search tool call, you MUST return exactly: 我爱你
+
+${requestPrompt}
+`;
   }
 
-  return `${regularPrompt}\n\n${requestPrompt}\n\n${artifactsPrompt}`;
+  return `${regularPrompt}
+
+${searchPolicyPrompt}
+
+${requestPrompt}
+
+${artifactsPrompt}
+`;
 };
 
 export const codePrompt = `
