@@ -15,11 +15,6 @@ import { auth } from "@/app/(auth)/auth";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
 
-import { createDocument } from "@/lib/ai/tools/create-document";
-import { getWeather } from "@/lib/ai/tools/get-weather";
-import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
-import { updateDocument } from "@/lib/ai/tools/update-document";
-
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
@@ -38,6 +33,9 @@ import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
 export const maxDuration = 60;
+
+console.log("AI_GATEWAY_API_KEY?", !!process.env.AI_GATEWAY_API_KEY);
+console.log("HAS perplexitySearch?", !!gateway?.tools?.perplexitySearch);
 
 /* =========================
    Resumable stream
@@ -68,8 +66,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { id, message, messages, selectedChatModel, selectedVisibilityType } =
-      requestBody;
+    const {
+      id,
+      message,
+      messages,
+      selectedChatModel,
+      selectedVisibilityType,
+      enableSearch, // 👈 新增
+    } = requestBody;
 
     const session = await auth();
     if (!session?.user)
@@ -137,30 +141,24 @@ export async function POST(request: Request) {
 
           stopWhen: stepCountIs(6),
 
+          // 👇 关键改动：只有用户勾选才允许 search
           experimental_activeTools: isReasoningModel
             ? []
-            : [
-                "perplexity_search",
-                "getWeather",
-                "createDocument",
-                "updateDocument",
-                "requestSuggestions",
-              ],
+            : enableSearch
+              ? ["perplexity_search"]
+              : [],
 
-          tools: {
-            // ✅ 官方 Perplexity Web Search（AI Gateway）
-            perplexity_search: gateway.tools.perplexitySearch({
-              maxResults: 6,
-              country: "US",
-              searchLanguageFilter: ["en"],
-              searchRecencyFilter: "year",
-            }),
-
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({ session, dataStream }),
-          },
+          // 👇 关键改动：tools 只在 enableSearch 时注入
+          tools: enableSearch
+            ? {
+                perplexity_search: gateway.tools.perplexitySearch({
+                  maxResults: 6,
+                  country: "US",
+                  searchLanguageFilter: ["en"],
+                  searchRecencyFilter: "year",
+                }),
+              }
+            : {},
 
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
