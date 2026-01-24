@@ -1,4 +1,4 @@
-// ❌ 删掉
+// ❌ 删掉 test
 // import { gateway } from "@ai-sdk/gateway";
 
 import { openai } from "@ai-sdk/openai";
@@ -10,7 +10,6 @@ import {
   generateId,
   stepCountIs,
   streamText,
-  type ToolSet,
 } from "ai";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
@@ -160,13 +159,6 @@ export async function POST(request: Request) {
         // -------------------------
         // 核心：工具注入（必须 cast）
         // -------------------------
-        const tools: ToolSet | undefined = forceSearch
-          ? ({
-              perplexity_search: gateway.tools.perplexitySearch({
-                maxResults: 6,
-              }),
-            } as unknown as ToolSet)
-          : undefined;
 
         const model = getLanguageModel(selectedChatModel);
         console.log("MODEL_CHECK =", model);
@@ -175,7 +167,6 @@ export async function POST(request: Request) {
           model: openai("gpt-5.2"),
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
-          tools,
           toolChoice: forceSearch
             ? { type: "tool", toolName: "perplexity_search" }
             : "auto",
