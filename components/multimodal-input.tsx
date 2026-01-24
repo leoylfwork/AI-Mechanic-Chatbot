@@ -68,8 +68,6 @@ function PureMultimodalInput({
   selectedVisibilityType,
   selectedModelId,
   onModelChange,
-  enableSearch,
-  onEnableSearchChange,
 }: {
   chatId: string;
   input: string;
@@ -85,8 +83,6 @@ function PureMultimodalInput({
   selectedVisibilityType: VisibilityType;
   selectedModelId: string;
   onModelChange?: (modelId: string) => void;
-  enableSearch: boolean;
-  onEnableSearchChange: (value: boolean) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -392,14 +388,6 @@ function PureMultimodalInput({
               onModelChange={onModelChange}
               selectedModelId={selectedModelId}
             />
-            <label className="flex items-center gap-2 px-2 text-sm text-muted-foreground">
-              <input
-                checked={enableSearch}
-                onChange={(event) => onEnableSearchChange(event.target.checked)}
-                type="checkbox"
-              />
-              🔍 搜索模式
-            </label>
           </PromptInputTools>
 
           {status === "submitted" ? (
@@ -436,9 +424,6 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.selectedModelId !== nextProps.selectedModelId) {
-      return false;
-    }
-    if (prevProps.enableSearch !== nextProps.enableSearch) {
       return false;
     }
 

@@ -51,6 +51,21 @@ function getStreamContext() {
 
 export { getStreamContext };
 
+function mustSearch(userText: string) {
+  const t = userText.toLowerCase();
+  return (
+    t.includes("recall") ||
+    t.includes("tsb") ||
+    t.includes("latest") ||
+    t.includes("2024") ||
+    t.includes("2025") ||
+    t.includes("price") ||
+    t.includes("多少钱") ||
+    t.includes("召回") ||
+    t.includes("最新")
+  );
+}
+
 /* =========================
    POST
 ========================= */
@@ -66,18 +81,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    const {
-      id,
-      message,
-      messages,
-      selectedChatModel,
-      selectedVisibilityType,
-      enableSearch, // 👈 新增
-    } = requestBody;
+    const { id, message, messages, selectedChatModel, selectedVisibilityType } =
+      requestBody;
 
     const session = await auth();
-    if (!session?.user)
+    if (!session?.user) {
       return new ChatSDKError("unauthorized:chat").toResponse();
+    }
 
     const isToolApprovalFlow = Boolean(messages);
 
@@ -128,12 +138,21 @@ export async function POST(request: Request) {
       selectedChatModel.includes("reasoning") ||
       selectedChatModel.includes("thinking");
 
+    const userText =
+      message?.role === "user"
+        ? ((message.parts?.[0] as { text?: string } | undefined)?.text ?? "")
+        : "";
+    const forceSearch = mustSearch(userText);
+
     const modelMessages = await convertToModelMessages(uiMessages);
 
     const stream = createUIMessageStream({
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
 
       execute: async ({ writer: dataStream }) => {
+        console.log("FORCE_SEARCH =", forceSearch);
+        console.log("USER_TEXT =", userText);
+
         const result = streamText({
           model: getLanguageModel(selectedChatModel),
           system: systemPrompt({ selectedChatModel, requestHints }),
@@ -141,15 +160,15 @@ export async function POST(request: Request) {
 
           stopWhen: stepCountIs(6),
 
-          // 👇 关键改动：只有用户勾选才允许 search
+          // 👇 关键改动：系统判断是否必须 search
           experimental_activeTools: isReasoningModel
             ? []
-            : enableSearch
+            : forceSearch
               ? ["perplexity_search"]
               : [],
 
-          // 👇 关键改动：tools 只在 enableSearch 时注入
-          tools: enableSearch
+          // 👇 关键改动：tools 只在 forceSearch 时注入
+          tools: forceSearch
             ? {
                 perplexity_search: gateway.tools.perplexitySearch({
                   maxResults: 6,

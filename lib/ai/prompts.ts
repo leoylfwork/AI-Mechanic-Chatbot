@@ -2,7 +2,9 @@ import type { Geo } from "@vercel/functions";
 import type { ArtifactKind } from "@/components/artifact";
 
 /**
- * 现在的架构：是否搜索由系统代码控制（enableSearch），
+ * 当前架构：
+ * 搜索是否发生由系统 mustSearch(userText) 决定，
+ * 用户无权控制，AI Agent 自动判断是否必须联网。
  * prompt 不再负责决定是否调用工具，只负责角色与风格。
  */
 

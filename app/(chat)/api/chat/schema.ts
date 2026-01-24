@@ -34,7 +34,6 @@ export const postRequestBodySchema = z.object({
   messages: z.array(messageSchema).optional(),
   selectedChatModel: z.string(),
   selectedVisibilityType: z.enum(["public", "private"]),
-  enableSearch: z.boolean().optional(),
 });
 
 export type PostRequestBody = z.infer<typeof postRequestBodySchema>;
