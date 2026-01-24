@@ -36,8 +36,6 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
 export const maxDuration = 60;
 
-console.log("TAVILY_API_KEY loaded?", Boolean(process.env.TAVILY_API_KEY));
-
 /* =========================
    Tavily Search (Relevance-style)
 ========================= */
@@ -265,6 +263,7 @@ export async function POST(request: Request) {
             : "";
 
         const needsSearch = shouldSearchRelevanceStyle(userText);
+        console.log("NEEDS_SEARCH:", needsSearch, "TEXT:", userText);
 
         let searchBuckets: SearchBucket[] = [];
 
@@ -294,6 +293,8 @@ export async function POST(request: Request) {
               query: `${userText}`,
             },
           ];
+
+          console.log("SEARCH_BUCKETS_COUNT:", searchBuckets.length);
 
           for (const step of plan) {
             try {
