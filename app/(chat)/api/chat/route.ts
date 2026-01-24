@@ -72,6 +72,10 @@ function mustSearch(userText: string) {
 ========================= */
 
 export async function POST(request: Request) {
+  console.log("AI_GATEWAY_API_KEY?", !!process.env.AI_GATEWAY_API_KEY);
+  console.log("HAS perplexitySearch?", !!gateway?.tools?.perplexitySearch);
+  console.log("DEPLOY_LOG_CHECK_123");
+
   let requestBody: PostRequestBody;
 
   try {
