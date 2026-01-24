@@ -179,13 +179,14 @@ export async function POST(request: Request) {
           },
         });
 
-        for await (const part of result.fullStream) {
+        const uiStream = result.toUIMessageStream({ sendReasoning: true });
+
+        for await (const part of uiStream as any) {
           if (part.type === "tool-call") {
             console.log("🛠 TOOL CALLED:", part.toolName);
           }
+          dataStream.write(part);
         }
-
-        dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
 
         if (titlePromise) {
           const title = await titlePromise;
