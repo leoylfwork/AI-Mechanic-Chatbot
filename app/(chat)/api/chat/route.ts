@@ -164,9 +164,6 @@ export async function POST(request: Request) {
           tools = {
             perplexity_search: gateway.tools.perplexitySearch({
               maxResults: 6,
-              country: "US",
-              searchLanguageFilter: ["en"],
-              searchRecencyFilter: "year",
             }),
           };
         }
