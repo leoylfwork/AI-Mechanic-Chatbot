@@ -153,13 +153,6 @@ export async function POST(request: Request) {
               maxResults: 6,
               country: "US",
               searchLanguageFilter: ["en"],
-              searchDomainFilter: [
-                "mbworld.org",
-                "benzworld.org",
-                "reddit.com",
-                "youtube.com",
-                "nhtsa.gov",
-              ],
               searchRecencyFilter: "year",
             }),
 
@@ -174,6 +167,12 @@ export async function POST(request: Request) {
             functionId: "stream-text",
           },
         });
+
+        for await (const part of result.fullStream) {
+          if (part.type === "tool-call") {
+            console.log("TOOL CALLED:", part.toolName);
+          }
+        }
 
         dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
 
