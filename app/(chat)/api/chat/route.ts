@@ -149,6 +149,9 @@ export async function POST(request: Request) {
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
 
       execute: async ({ writer: dataStream }) => {
+        console.log("🔥 HIT execute");
+        console.log("USER_TEXT =", userText);
+        console.log("FORCE_SEARCH =", forceSearch);
         // -------------------------
         // 核心：工具注入（必须 cast）
         // -------------------------
@@ -180,6 +183,12 @@ export async function POST(request: Request) {
             functionId: "stream-text",
           },
         });
+
+        for await (const part of result.fullStream) {
+          if (part.type === "tool-call") {
+            console.log("🛠 TOOL CALLED:", part.toolName);
+          }
+        }
 
         dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
 
