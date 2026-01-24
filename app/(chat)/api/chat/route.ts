@@ -168,7 +168,7 @@ export async function POST(request: Request) {
           model: getLanguageModel(selectedChatModel),
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
-
+          tools,
           stopWhen: stepCountIs(forceSearch ? 10 : 6),
 
           experimental_activeTools: forceSearch ? ["perplexity_search"] : [],
