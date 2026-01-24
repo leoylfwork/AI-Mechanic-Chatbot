@@ -182,7 +182,7 @@ export async function POST(request: Request) {
                   searchRecencyFilter: "year",
                 }),
               }
-            : {},
+            : undefined,
 
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
