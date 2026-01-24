@@ -7,6 +7,7 @@ import {
   generateId,
   stepCountIs,
   streamText,
+  type ToolSet,
 } from "ai";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
@@ -158,6 +159,18 @@ export async function POST(request: Request) {
         console.log("FORCE_SEARCH =", forceSearch);
         console.log("USER_TEXT =", userText);
 
+        let tools: ToolSet = {};
+        if (forceSearch) {
+          tools = {
+            perplexity_search: gateway.tools.perplexitySearch({
+              maxResults: 6,
+              country: "US",
+              searchLanguageFilter: ["en"],
+              searchRecencyFilter: "year",
+            }),
+          };
+        }
+
         const result = streamText({
           model: getLanguageModel(selectedChatModel),
           system: systemPrompt({ selectedChatModel, requestHints }),
@@ -173,16 +186,7 @@ export async function POST(request: Request) {
               : [],
 
           // 👇 关键改动：tools 只在 forceSearch 时注入
-          tools: forceSearch
-            ? {
-                perplexity_search: gateway.tools.perplexitySearch({
-                  maxResults: 6,
-                  country: "US",
-                  searchLanguageFilter: ["en"],
-                  searchRecencyFilter: "year",
-                }),
-              }
-            : undefined,
+          tools,
 
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
