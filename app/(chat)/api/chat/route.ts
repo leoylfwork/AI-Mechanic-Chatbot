@@ -141,7 +141,8 @@ export async function POST(request: Request) {
         ? ((message.parts?.[0] as { text?: string } | undefined)?.text ?? "")
         : "";
 
-    const forceSearch = mustSearch(userText);
+    // const forceSearch = mustSearch(userText);
+    const forceSearch = true;
 
     const modelMessages = await convertToModelMessages(uiMessages);
 
@@ -168,15 +169,9 @@ export async function POST(request: Request) {
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
 
-          stopWhen: stepCountIs(6),
+          stopWhen: stepCountIs(forceSearch ? 10 : 6),
 
-          experimental_activeTools: isReasoningModel
-            ? []
-            : forceSearch
-              ? ["perplexity_search"]
-              : [],
-
-          tools,
+          experimental_activeTools: forceSearch ? ["perplexity_search"] : [],
 
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
