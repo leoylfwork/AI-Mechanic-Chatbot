@@ -15,7 +15,7 @@ import { createResumableStreamContext } from "resumable-stream";
 import { auth } from "@/app/(auth)/auth";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
-
+// test
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
@@ -164,6 +164,9 @@ export async function POST(request: Request) {
               }),
             } as unknown as ToolSet)
           : undefined;
+
+        const model = getLanguageModel(selectedChatModel);
+        console.log("MODEL_CHECK =", model);
 
         const result = streamText({
           model: getLanguageModel(selectedChatModel),
