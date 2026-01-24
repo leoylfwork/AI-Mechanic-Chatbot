@@ -36,6 +36,7 @@ export const maxDuration = 60;
 
 console.log("AI_GATEWAY_API_KEY?", !!process.env.AI_GATEWAY_API_KEY);
 console.log("HAS perplexitySearch?", !!gateway?.tools?.perplexitySearch);
+console.log("DEPLOY_LOG_CHECK_123");
 
 /* =========================
    Resumable stream
