@@ -35,10 +35,6 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
 export const maxDuration = 60;
 
-console.log("AI_GATEWAY_API_KEY?", !!process.env.AI_GATEWAY_API_KEY);
-console.log("HAS perplexitySearch?", !!gateway?.tools?.perplexitySearch);
-console.log("DEPLOY_LOG_CHECK_123");
-
 /* =========================
    Resumable stream
 ========================= */
@@ -73,10 +69,6 @@ function mustSearch(userText: string) {
 ========================= */
 
 export async function POST(request: Request) {
-  console.log("AI_GATEWAY_API_KEY?", !!process.env.AI_GATEWAY_API_KEY);
-  console.log("HAS perplexitySearch?", !!gateway?.tools?.perplexitySearch);
-  console.log("DEPLOY_LOG_CHECK_123");
-
   let requestBody: PostRequestBody;
 
   try {
@@ -148,6 +140,7 @@ export async function POST(request: Request) {
       message?.role === "user"
         ? ((message.parts?.[0] as { text?: string } | undefined)?.text ?? "")
         : "";
+
     const forceSearch = mustSearch(userText);
 
     const modelMessages = await convertToModelMessages(uiMessages);
@@ -156,17 +149,16 @@ export async function POST(request: Request) {
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
 
       execute: async ({ writer: dataStream }) => {
-        console.log("FORCE_SEARCH =", forceSearch);
-        console.log("USER_TEXT =", userText);
-
-        let tools: ToolSet = {};
-        if (forceSearch) {
-          tools = {
-            perplexity_search: gateway.tools.perplexitySearch({
-              maxResults: 6,
-            }),
-          };
-        }
+        // -------------------------
+        // 核心：工具注入（必须 cast）
+        // -------------------------
+        const tools: ToolSet | undefined = forceSearch
+          ? ({
+              perplexity_search: gateway.tools.perplexitySearch({
+                maxResults: 6,
+              }),
+            } as unknown as ToolSet)
+          : undefined;
 
         const result = streamText({
           model: getLanguageModel(selectedChatModel),
@@ -175,14 +167,12 @@ export async function POST(request: Request) {
 
           stopWhen: stepCountIs(6),
 
-          // 👇 关键改动：系统判断是否必须 search
           experimental_activeTools: isReasoningModel
             ? []
             : forceSearch
               ? ["perplexity_search"]
               : [],
 
-          // 👇 关键改动：tools 只在 forceSearch 时注入
           tools,
 
           experimental_telemetry: {
@@ -190,12 +180,6 @@ export async function POST(request: Request) {
             functionId: "stream-text",
           },
         });
-
-        for await (const part of result.fullStream) {
-          if (part.type === "tool-call") {
-            console.log("TOOL CALLED:", part.toolName);
-          }
-        }
 
         dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
 
@@ -256,15 +240,11 @@ export async function POST(request: Request) {
       stream,
 
       async consumeSseStream({ stream: sseStream }) {
-        if (!process.env.REDIS_URL) {
-          return;
-        }
+        if (!process.env.REDIS_URL) return;
 
         try {
           const streamContext = getStreamContext();
-          if (!streamContext) {
-            return;
-          }
+          if (!streamContext) return;
 
           const streamId = generateId();
           await createStreamId({ streamId, chatId: id });
