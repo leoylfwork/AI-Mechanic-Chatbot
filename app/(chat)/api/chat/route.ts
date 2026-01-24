@@ -1,3 +1,4 @@
+import { gateway } from "@ai-sdk/gateway";
 import { geolocation } from "@vercel/functions";
 import {
   convertToModelMessages,
@@ -9,17 +10,19 @@ import {
 } from "ai";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
+
 import { auth } from "@/app/(auth)/auth";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
+
 import { createDocument } from "@/lib/ai/tools/create-document";
 import { getWeather } from "@/lib/ai/tools/get-weather";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { updateDocument } from "@/lib/ai/tools/update-document";
+
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
-  deleteChatById,
   getChatById,
   getMessagesByChatId,
   saveChat,
@@ -37,136 +40,13 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 export const maxDuration = 60;
 
 /* =========================
-   Tavily Search (Relevance-style)
-========================= */
-
-type TavilyItem = {
-  title: string;
-  url: string;
-  content?: string;
-  score?: number;
-};
-
-type SearchBucket = {
-  bucket: "forum" | "youtube" | "tsb" | "web";
-  query: string;
-  items: TavilyItem[];
-  error?: string;
-};
-
-function extractTextFromParts(parts: any[] | undefined): string {
-  if (!parts) return "";
-  const texts: string[] = [];
-  for (const p of parts) {
-    if (!p) continue;
-    if (typeof p === "string") texts.push(p);
-    if (p.type === "text" && typeof p.text === "string") texts.push(p.text);
-  }
-  return texts.join("\n").trim();
-}
-
-function shouldSearchRelevanceStyle(userText: string): boolean {
-  const t = (userText || "").toLowerCase();
-  const highRiskSignals = [
-    "misfire",
-    "no start",
-    "overheat",
-    "overheating",
-    "stall",
-    "stalls",
-    "rough",
-    "code",
-    "dtc",
-    "p0",
-    "cylinder",
-    "compression",
-    "fuel trim",
-    "injector",
-    "coil",
-    "spark",
-    "timing",
-    "tsb",
-    "next step",
-    "diagnose",
-    "diagnosis",
-    "诊断",
-    "报码",
-    "失火",
-    "缺火",
-    "无法启动",
-    "过热",
-    "下一步",
-    "缸压",
-    "喷油嘴",
-    "点火线圈",
-  ];
-  return highRiskSignals.some((k) => t.includes(k));
-}
-
-async function tavilySearch(params: {
-  query: string;
-  includeDomains?: string[];
-  excludeDomains?: string[];
-  maxResults?: number;
-}): Promise<TavilyItem[]> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) throw new Error("Missing env: TAVILY_API_KEY");
-
-  const res = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query: params.query,
-      max_results: params.maxResults ?? 6,
-      search_depth: "advanced",
-      include_answer: false,
-      include_raw_content: false,
-      include_domains: params.includeDomains,
-      exclude_domains: params.excludeDomains,
-    }),
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Tavily error ${res.status}: ${txt}`.slice(0, 500));
-  }
-
-  const data = await res.json();
-  const results = Array.isArray(data?.results) ? data.results : [];
-  return results.map((r: any) => ({
-    title: r?.title ?? "",
-    url: r?.url ?? "",
-    content: r?.content ?? "",
-    score: r?.score,
-  }));
-}
-
-function toEvidencePack(buckets: SearchBucket[]): string {
-  const lines: string[] = [];
-  lines.push("SEARCH_EVIDENCE (use as citations; do not invent links):");
-  for (const b of buckets) {
-    lines.push(`\n[${b.bucket.toUpperCase()}] query="${b.query}"`);
-    if (b.error) {
-      lines.push(`- ERROR: ${b.error}`);
-      continue;
-    }
-    for (const it of b.items.slice(0, 5)) {
-      if (!it?.url) continue;
-      lines.push(`- ${it.title} | ${it.url}`);
-    }
-  }
-  return lines.join("\n");
-}
-
-/* =========================
    Resumable stream
 ========================= */
 
 function getStreamContext() {
   try {
     return createResumableStreamContext({ waitUntil: after });
-  } catch (_) {
+  } catch {
     return null;
   }
 }
@@ -183,7 +63,7 @@ export async function POST(request: Request) {
   try {
     const json = await request.json();
     requestBody = postRequestBodySchema.parse(json);
-  } catch (_) {
+  } catch {
     return new ChatSDKError("bad_request:api").toResponse();
   }
 
@@ -192,9 +72,8 @@ export async function POST(request: Request) {
       requestBody;
 
     const session = await auth();
-    if (!session?.user) {
+    if (!session?.user)
       return new ChatSDKError("unauthorized:chat").toResponse();
-    }
 
     const isToolApprovalFlow = Boolean(messages);
 
@@ -224,15 +103,9 @@ export async function POST(request: Request) {
       : [...convertToUIMessages(messagesFromDb), message as ChatMessage];
 
     const { longitude, latitude, city, country } = geolocation(request);
+    const requestHints: RequestHints = { longitude, latitude, city, country };
 
-    const requestHints: RequestHints = {
-      longitude,
-      latitude,
-      city,
-      country,
-    };
-
-    if (message?.role === "user") {
+    if (!isToolApprovalFlow && message?.role === "user") {
       await saveMessages({
         messages: [
           {
@@ -257,112 +130,39 @@ export async function POST(request: Request) {
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
 
       execute: async ({ writer: dataStream }) => {
-        const userText =
-          message?.role === "user"
-            ? extractTextFromParts((message as any)?.parts)
-            : "";
-
-        const needsSearch = shouldSearchRelevanceStyle(userText);
-        console.log("NEEDS_SEARCH:", needsSearch, "TEXT:", userText);
-
-        let searchBuckets: SearchBucket[] = [];
-
-        if (needsSearch) {
-          const plan: Array<{
-            bucket: SearchBucket["bucket"];
-            includeDomains?: string[];
-            query: string;
-          }> = [
-            {
-              bucket: "forum",
-              includeDomains: ["mbworld.org", "benzworld.org", "reddit.com"],
-              query: `${userText} site:mbworld.org OR site:benzworld.org OR site:reddit.com`,
-            },
-            {
-              bucket: "youtube",
-              includeDomains: ["youtube.com"],
-              query: `${userText} site:youtube.com`,
-            },
-            {
-              bucket: "tsb",
-              includeDomains: ["nhtsa.gov"],
-              query: `${userText} TSB site:nhtsa.gov`,
-            },
-            {
-              bucket: "web",
-              query: `${userText}`,
-            },
-          ];
-
-          console.log("SEARCH_BUCKETS_COUNT:", searchBuckets.length);
-
-          for (const step of plan) {
-            try {
-              const items = await tavilySearch({
-                query: step.query,
-                includeDomains: step.includeDomains,
-                maxResults: 6,
-              });
-
-              searchBuckets.push({
-                bucket: step.bucket,
-                query: step.query,
-                items,
-              });
-            } catch (e: any) {
-              searchBuckets.push({
-                bucket: step.bucket,
-                query: step.query,
-                items: [],
-                error: e?.message ?? String(e),
-              });
-            }
-          }
-
-          const anyResult = searchBuckets.some(
-            (b) => (b.items?.length ?? 0) > 0
-          );
-          if (!anyResult) {
-            // 如果全空，就当没搜到，不注入 evidence
-            searchBuckets = [];
-          }
-        }
-
-        const evidenceText =
-          searchBuckets.length > 0 ? toEvidencePack(searchBuckets) : "";
-
-        const augmentedMessages =
-          evidenceText.length > 0
-            ? ([
-                ...(modelMessages as any),
-                { role: "system", content: evidenceText },
-              ] as any)
-            : (modelMessages as any);
-
         const result = streamText({
           model: getLanguageModel(selectedChatModel),
           system: systemPrompt({ selectedChatModel, requestHints }),
-          messages: augmentedMessages,
-          stopWhen: stepCountIs(5),
+          messages: modelMessages as any,
+
+          stopWhen: stepCountIs(6),
 
           experimental_activeTools: isReasoningModel
             ? []
             : [
+                "perplexity_search",
                 "getWeather",
                 "createDocument",
                 "updateDocument",
                 "requestSuggestions",
               ],
 
-          providerOptions: isReasoningModel
-            ? {
-                anthropic: {
-                  thinking: { type: "enabled", budgetTokens: 10_000 },
-                },
-              }
-            : undefined,
-
           tools: {
+            // ✅ 官方 Perplexity Web Search（AI Gateway）
+            perplexity_search: gateway.tools.perplexitySearch({
+              maxResults: 6,
+              country: "US",
+              searchLanguageFilter: ["en"],
+              searchDomainFilter: [
+                "mbworld.org",
+                "benzworld.org",
+                "reddit.com",
+                "youtube.com",
+                "nhtsa.gov",
+              ],
+              searchRecencyFilter: "year",
+            }),
+
             getWeather,
             createDocument: createDocument({ session, dataStream }),
             updateDocument: updateDocument({ session, dataStream }),
@@ -410,12 +210,15 @@ export async function POST(request: Request) {
               });
             }
           }
-        } else if (finishedMessages.length > 0) {
+          return;
+        }
+
+        if (finishedMessages.length > 0) {
           await saveMessages({
-            messages: finishedMessages.map((currentMessage) => ({
-              id: currentMessage.id,
-              role: currentMessage.role,
-              parts: currentMessage.parts,
+            messages: finishedMessages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              parts: m.parts,
               createdAt: new Date(),
               attachments: [],
               chatId: id,
@@ -429,20 +232,26 @@ export async function POST(request: Request) {
 
     return createUIMessageStreamResponse({
       stream,
+
       async consumeSseStream({ stream: sseStream }) {
-        if (!process.env.REDIS_URL) return;
+        if (!process.env.REDIS_URL) {
+          return;
+        }
 
         try {
           const streamContext = getStreamContext();
-          if (streamContext) {
-            const streamId = generateId();
-            await createStreamId({ streamId, chatId: id });
-            await streamContext.createNewResumableStream(
-              streamId,
-              () => sseStream
-            );
+          if (!streamContext) {
+            return;
           }
-        } catch (_) {
+
+          const streamId = generateId();
+          await createStreamId({ streamId, chatId: id });
+
+          await streamContext.createNewResumableStream(
+            streamId,
+            () => sseStream
+          );
+        } catch {
           // ignore redis errors
         }
       },
@@ -467,33 +276,3 @@ export async function POST(request: Request) {
     return new ChatSDKError("offline:chat").toResponse();
   }
 }
-
-/* =========================
-   DELETE
-========================= */
-
-export async function DELETE(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return new ChatSDKError("bad_request:api").toResponse();
-  }
-
-  const session = await auth();
-
-  if (!session?.user) {
-    return new ChatSDKError("unauthorized:chat").toResponse();
-  }
-
-  const chat = await getChatById({ id });
-
-  if (chat?.userId !== session.user.id) {
-    return new ChatSDKError("forbidden:chat").toResponse();
-  }
-
-  const deletedChat = await deleteChatById({ id });
-
-  return Response.json(deletedChat, { status: 200 });
-}
-// test push
