@@ -169,9 +169,10 @@ export async function POST(request: Request) {
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
           tools,
+          toolChoice: forceSearch
+            ? { type: "tool", toolName: "perplexity_search" }
+            : "auto",
           stopWhen: stepCountIs(forceSearch ? 10 : 6),
-
-          experimental_activeTools: forceSearch ? ["perplexity_search"] : [],
 
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
