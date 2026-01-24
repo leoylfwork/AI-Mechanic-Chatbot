@@ -166,7 +166,7 @@ export async function POST(request: Request) {
           : undefined;
 
         const result = streamText({
-          model: gateway.models.openai("gpt-5.2"),
+          model: getLanguageModel(selectedChatModel),
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
           tools,
