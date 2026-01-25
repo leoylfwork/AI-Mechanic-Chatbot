@@ -339,6 +339,12 @@ export async function POST(request: Request) {
     if (forceSearch) {
       console.log("🌍 MANUAL SEARCH TRIGGERED");
 
+      const searchQuery = `
+      Answer in English.
+      Search only English technical automotive sources.
+      ${userText}
+      `;
+
       const res = await fetch("https://api.tavily.com/search", {
         method: "POST",
         headers: {
@@ -346,7 +352,7 @@ export async function POST(request: Request) {
           Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
         },
         body: JSON.stringify({
-          query: userText,
+          query: searchQuery,
           max_results: 6,
           search_depth: "basic",
         }),
