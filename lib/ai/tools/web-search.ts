@@ -3,7 +3,7 @@ import { z } from "zod";
 export const webSearchTool = {
   web_search: {
     description: "Search the web for up-to-date information",
-    parameters: z.object({
+    inputSchema: z.object({
       query: z.string(),
     }),
     execute: async ({ query }: { query: string }) => {
