@@ -10,12 +10,12 @@ export type ChatModel = {
 
 export const chatModels: ChatModel[] = [
   // OpenAI
-  // {
-  //   id: "openai/gpt-4.1-mini",
-  //   name: "GPT-4.1 Mini",
-  //   provider: "openai",
-  //   description: "Fast and cost-effective for simple tasks",
-  // },
+  {
+    id: "openai/gpt-5-nano",
+    name: "GPT-5 nano",
+    provider: "openai",
+    description: "Fast and cost-effective for simple tasks",
+  },
   {
     id: "openai/gpt-5.2",
     name: "GPT-5.2",
