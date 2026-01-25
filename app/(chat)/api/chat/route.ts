@@ -192,7 +192,7 @@ Content: ${r.content}
         const result = streamText({
           model: getLanguageModel(selectedChatModel),
           system:
-            systemPrompt({ selectedChatModel, requestHints }) +
+            systemPrompt({ requestHints }) +
             `
 
               WEB SEARCH RESULTS:
