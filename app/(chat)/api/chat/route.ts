@@ -1,7 +1,6 @@
 // ❌ 删掉 test
 // import { gateway } from "@ai-sdk/gateway";
 
-import { openai } from "@ai-sdk/openai";
 import { geolocation } from "@vercel/functions";
 import {
   convertToModelMessages,
@@ -163,10 +162,10 @@ export async function POST(request: Request) {
         console.log("MODEL_CHECK =", model);
 
         const result = streamText({
-          model: openai("gpt-5.2"),
+          model: getLanguageModel(selectedChatModel), //openai("gpt-5.2"),
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
-          tools: webSearchTool, // 👈 注入 Tavily
+          tools: { webSearchTool }, // 👈 注入 Tavily
           toolChoice: { type: "tool", toolName: "web_search" },
 
           experimental_telemetry: {
