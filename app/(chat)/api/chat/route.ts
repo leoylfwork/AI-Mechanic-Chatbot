@@ -8,15 +8,14 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateId,
-  stepCountIs,
   streamText,
 } from "ai";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
-
 import { auth } from "@/app/(auth)/auth";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
+import { webSearchTool } from "@/lib/ai/tools/web-search";
 // test
 import { isProductionEnvironment } from "@/lib/constants";
 import {
@@ -167,10 +166,8 @@ export async function POST(request: Request) {
           model: openai("gpt-5.2"),
           system: systemPrompt({ selectedChatModel, requestHints }),
           messages: modelMessages as any,
-          toolChoice: forceSearch
-            ? { type: "tool", toolName: "perplexity_search" }
-            : "auto",
-          stopWhen: stepCountIs(forceSearch ? 10 : 6),
+          tools: webSearchTool, // 👈 注入 Tavily
+          toolChoice: { type: "tool", toolName: "web_search" },
 
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
