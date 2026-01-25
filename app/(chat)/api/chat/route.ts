@@ -15,9 +15,6 @@ import { createResumableStreamContext } from "resumable-stream";
 import { auth } from "@/app/(auth)/auth";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { getLanguageModel } from "@/lib/ai/providers";
-import { webSearchTool } from "@/lib/ai/tools/web-search";
-// test
-import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
   getChatById,
@@ -145,6 +142,36 @@ export async function POST(request: Request) {
     // const forceSearch = mustSearch(userText);
     const forceSearch = true;
 
+    let searchContext = "";
+    if (forceSearch) {
+      console.log("🌍 MANUAL SEARCH TRIGGERED");
+
+      const res = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        },
+        body: JSON.stringify({
+          query: userText,
+          max_results: 6,
+          search_depth: "basic",
+        }),
+      });
+
+      const data = await res.json();
+      searchContext = data.results
+        .map(
+          (r: any, i: number) => `
+[${i + 1}]
+Title: ${r.title}
+URL: ${r.url}
+Content: ${r.content}
+`
+        )
+        .join("\n");
+    }
+
     const modelMessages = await convertToModelMessages(uiMessages);
 
     const stream = createUIMessageStream({
@@ -163,16 +190,20 @@ export async function POST(request: Request) {
         console.log("MODEL_CHECK =", model);
 
         const result = streamText({
-          model: getLanguageModel(selectedChatModel), //openai("gpt-5.2"),
-          system: systemPrompt({ selectedChatModel, requestHints }),
-          messages: modelMessages as any,
-          tools: webSearchTool, // 👈 注入 Tavily
-          toolChoice: { type: "tool", toolName: "web_search" },
+          model: getLanguageModel(selectedChatModel),
+          system:
+            systemPrompt({ selectedChatModel, requestHints }) +
+            `
 
-          experimental_telemetry: {
-            isEnabled: isProductionEnvironment,
-            functionId: "stream-text",
-          },
+              WEB SEARCH RESULTS:
+              ${searchContext}
+
+              INSTRUCTIONS:
+              - When using facts from the web search, include the source URL.
+              - At the end of the answer, list the sources used.
+              - Use real URLs from the results above.
+              `,
+          messages: modelMessages,
         });
 
         const uiStream = result.toUIMessageStream({ sendReasoning: true });
