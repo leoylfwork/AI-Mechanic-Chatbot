@@ -1,8 +1,6 @@
 // ❌ 删掉 test
 // import { gateway } from "@ai-sdk/gateway";
 
-// import { openai } from "@ai-sdk/openai";
-import { geolocation } from "@vercel/functions";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -112,8 +110,10 @@ export async function POST(request: Request) {
       ? (messages as ChatMessage[])
       : [...convertToUIMessages(messagesFromDb), message as ChatMessage];
 
-    const { longitude, latitude, city, country } = geolocation(request);
-    const requestHints: RequestHints = { longitude, latitude, city, country };
+    const requestHints: RequestHints = {
+      userRole: "technician",
+      shopType: "independent",
+    };
 
     if (!isToolApprovalFlow && message?.role === "user") {
       await saveMessages({
