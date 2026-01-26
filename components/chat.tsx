@@ -22,7 +22,6 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
 import type { Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
-import { supabaseClient } from "@/lib/supabase/client";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
@@ -73,8 +72,6 @@ export function Chat({
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const currentModelIdRef = useRef(currentModelId);
-  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   // ✅ 必须在 useChat 之前声明（否则 onData 里会引用未初始化的 setSourcesState）
   const [sourcesState, setSourcesState] = useState<any>(null);
@@ -188,44 +185,44 @@ export function Chat({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
 
-    setUploading(true);
+  //   setUploading(true);
 
-    try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `chat/${crypto.randomUUID()}.${ext}`;
+  //   try {
+  //     const ext = file.name.split(".").pop() || "jpg";
+  //     const path = `chat/${crypto.randomUUID()}.${ext}`;
 
-      const { data, error } = await supabaseClient.storage
-        .from("chat-images")
-        .upload(path, file, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: file.type,
-        });
+  //     const { data, error } = await supabaseClient.storage
+  //       .from("chat-images")
+  //       .upload(path, file, {
+  //         cacheControl: "3600",
+  //         upsert: false,
+  //         contentType: file.type,
+  //       });
 
-      if (error) {
-        throw new Error(error.message);
-      }
+  //     if (error) {
+  //       throw new Error(error.message);
+  //     }
 
-      if (!data) {
-        throw new Error("Upload returned no data");
-      }
+  //     if (!data) {
+  //       throw new Error("Upload returned no data");
+  //     }
 
-      const { data: pub } = supabaseClient.storage
-        .from("chat-images")
-        .getPublicUrl(data.path);
+  //     const { data: pub } = supabaseClient.storage
+  //       .from("chat-images")
+  //       .getPublicUrl(data.path);
 
-      setPendingImageUrl(pub.publicUrl);
-    } catch (err: any) {
-      console.error("Upload failed FULL:", err);
-      alert(JSON.stringify(err, null, 2));
-    } finally {
-      setUploading(false);
-    }
-  }
+  //     setPendingImageUrl(pub.publicUrl);
+  //   } catch (err: any) {
+  //     console.error("Upload failed FULL:", err);
+  //     alert(JSON.stringify(err, null, 2));
+  //   } finally {
+  //     setUploading(false);
+  //   }
+  // }
 
   useAutoResume({
     autoResume,
@@ -266,18 +263,7 @@ export function Chat({
         <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
           {!isReadonly && (
             <div className="flex w-full flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <input
-                  accept="image/*"
-                  disabled={uploading}
-                  onChange={handleUpload}
-                  type="file"
-                />
-
-                {pendingImageUrl && (
-                  <span className="text-xs text-green-500">Image attached</span>
-                )}
-              </div>
+              <div className="flex items-center gap-2" />
 
               <MultimodalInput
                 attachments={attachments}
