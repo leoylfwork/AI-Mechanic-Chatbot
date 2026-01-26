@@ -248,6 +248,8 @@ function mustSearch(userText: string) {
     "合规",
     "安全标准",
     "搜",
+    "查",
+    "找",
   ];
 
   return keywords.some((k) => t.includes(k));
