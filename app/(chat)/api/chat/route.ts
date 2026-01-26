@@ -120,11 +120,10 @@ function mustSearch(userText: string) {
 
     // ===== 6. OEM parts / specs =====
     "oem",
-    "part number",
-    "part no",
+    "part",
     "pn",
-    "genuine part",
-    "replacement part",
+    "genuine",
+    "replacement",
     "原厂",
     "原厂件",
     "副厂",
@@ -139,11 +138,11 @@ function mustSearch(userText: string) {
     "torque spec",
     "specification",
     "spec",
-    "fluid capacity",
-    "oil capacity",
-    "coolant capacity",
-    "atf capacity",
-    "service capacity",
+    "fluid",
+    "oil",
+    "coolant",
+    "atf",
+    "service",
     "扭矩",
     "扭力",
     "规格",
@@ -156,19 +155,18 @@ function mustSearch(userText: string) {
 
     // ===== 8. Procedures / official steps =====
     "procedure",
-    "service procedure",
-    "repair procedure",
+    "service",
+    "repair",
     "step by step",
     "how to replace",
     "how to remove",
     "how to install",
     "oem procedure",
-    "维修步骤",
-    "更换步骤",
-    "拆卸方法",
-    "安装方法",
-    "维修流程",
-    "官方流程",
+    "维修",
+    "步骤",
+    "方法",
+    "流程",
+    "官方",
 
     // ===== 9. Software / calibration =====
     "software update",
@@ -188,7 +186,7 @@ function mustSearch(userText: string) {
 
     // ===== 10. Campaigns / programs =====
     "campaign",
-    "service campaign",
+    "service",
     "field action",
     "customer satisfaction program",
     "extended warranty",
@@ -242,12 +240,14 @@ function mustSearch(userText: string) {
     "safety standard",
     "regulation",
     "compliance",
+    "search",
     "排放",
     "环保",
     "排放标准",
     "法规",
     "合规",
     "安全标准",
+    "搜",
   ];
 
   return keywords.some((k) => t.includes(k));
