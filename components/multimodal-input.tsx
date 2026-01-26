@@ -41,7 +41,7 @@ import {
   PromptInputToolbar,
   PromptInputTools,
 } from "./elements/prompt-input";
-import { ArrowUpIcon, GlobeIcon, PaperclipIcon, StopIcon } from "./icons";
+import { ArrowUpIcon, PaperclipIcon, StopIcon } from "./icons";
 import { PreviewAttachment } from "./preview-attachment";
 import { SuggestedActions } from "./suggested-actions";
 import { Button } from "./ui/button";
@@ -86,7 +86,7 @@ function PureMultimodalInput({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
-  const [forceSearchNext, setForceSearchNext] = useState(false);
+
   const adjustHeight = useCallback(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "44px";
@@ -161,9 +161,6 @@ function PureMultimodalInput({
           text: input,
         },
       ],
-      metadata: {
-        forceSearch: forceSearchNext,
-      },
     });
 
     setAttachments([]);
@@ -391,18 +388,6 @@ function PureMultimodalInput({
               onModelChange={onModelChange}
               selectedModelId={selectedModelId}
             />
-            <Button
-              className="h-8 gap-1.5 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => {
-                setForceSearchNext((prev) => !prev);
-                toast("Next reply will use web search");
-              }}
-              type="button"
-              variant="ghost"
-            >
-              <GlobeIcon size={14} />
-              <span>Search</span>
-            </Button>
           </PromptInputTools>
 
           {status === "submitted" ? (

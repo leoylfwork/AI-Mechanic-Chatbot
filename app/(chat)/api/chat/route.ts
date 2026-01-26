@@ -345,9 +345,8 @@ export async function POST(request: Request) {
         ? ((message.parts?.[0] as { text?: string } | undefined)?.text ?? "")
         : "";
 
-    const { forceSearch } = requestBody;
-    const forceSearchFinal = forceSearch || mustSearch(userText);
-
+    const forceSearch = mustSearch(userText);
+    // const forceSearch = true;
     const vin = extractVIN(userText);
 
     let vinContext = "";
@@ -360,7 +359,7 @@ export async function POST(request: Request) {
     }
 
     let searchContext = "";
-    if (forceSearchFinal) {
+    if (forceSearch) {
       console.log("🌍 MANUAL SEARCH TRIGGERED");
 
       const searchQuery = `
@@ -403,7 +402,7 @@ export async function POST(request: Request) {
         console.log("🔥 HIT execute");
         console.log("MODEL =", getLanguageModel(selectedChatModel));
         console.log("USER_TEXT =", userText);
-        console.log("FORCE_SEARCH =", forceSearchFinal);
+        console.log("FORCE_SEARCH =", forceSearch);
         // -------------------------
         // 核心：工具注入（必须 cast）
         // -------------------------
@@ -417,7 +416,7 @@ export async function POST(request: Request) {
             systemPrompt({ requestHints }) +
             vinContext +
             `
-            SEARCH_MODE: ${forceSearchFinal ? "ON" : "OFF"}
+            SEARCH_MODE: ${forceSearch ? "ON" : "OFF"}
 
             WEB_SEARCH_RESULTS_JSON:
             ${searchContext || "[]"}
