@@ -56,6 +56,16 @@ export function Chat({
   });
 
   const { mutate } = useSWRConfig();
+
+  useEffect(() => {
+    const handlePopState = () => {
+      router.refresh();
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [router]);
+
   const { setDataStream } = useDataStream();
 
   const [input, setInput] = useState<string>("");
@@ -63,10 +73,7 @@ export function Chat({
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const currentModelIdRef = useRef(currentModelId);
 
-  // 🔍 Search Button state
-  const [forceSearchNext, setForceSearchNext] = useState(false);
-
-  // sources from backend metadata
+  // ✅ 必须在 useChat 之前声明（否则 onData 里会引用未初始化的 setSourcesState）
   const [sourcesState, setSourcesState] = useState<any>(null);
 
   useEffect(() => {
@@ -86,12 +93,23 @@ export function Chat({
     id,
     messages: initialMessages,
     generateId: generateUUID,
+    sendAutomaticallyWhen: ({ messages: currentMessages }) => {
+      const lastMessage = currentMessages.at(-1);
+      const shouldContinue =
+        lastMessage?.parts?.some(
+          (part) =>
+            "state" in part &&
+            part.state === "approval-responded" &&
+            "approval" in part &&
+            (part.approval as { approved?: boolean })?.approved === true
+        ) ?? false;
+      return shouldContinue;
+    },
     transport: new DefaultChatTransport({
       api: "/api/chat",
       fetch: fetchWithErrorHandlers,
       prepareSendMessagesRequest(request) {
         const lastMessage = request.messages.at(-1);
-
         const isToolApprovalContinuation =
           lastMessage?.role !== "user" ||
           request.messages.some((msg) =>
@@ -103,21 +121,17 @@ export function Chat({
             })
           );
 
-        const body = {
-          id: request.id,
-          ...(isToolApprovalContinuation
-            ? { messages: request.messages }
-            : { message: lastMessage }),
-          selectedChatModel: currentModelIdRef.current,
-          selectedVisibilityType: visibilityType,
-          forceSearch: forceSearchNext, // 👈 前端强制搜索开关
-          ...request.body,
+        return {
+          body: {
+            id: request.id,
+            ...(isToolApprovalContinuation
+              ? { messages: request.messages }
+              : { message: lastMessage }),
+            selectedChatModel: currentModelIdRef.current,
+            selectedVisibilityType: visibilityType,
+            ...request.body,
+          },
         };
-
-        // 用完自动 reset
-        setForceSearchNext(false);
-
-        return { body };
       },
     }),
     onData: (dataPart) => {
@@ -125,6 +139,7 @@ export function Chat({
         setSourcesState(dataPart.data);
       }
 
+      // ✅ ds 为空时别返回 []，否则第一条丢了
       setDataStream((ds) => (ds ? [...ds, dataPart] : [dataPart]));
     },
     onFinish: () => {
@@ -170,6 +185,45 @@ export function Chat({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const isArtifactVisible = useArtifactSelector((state) => state.isVisible);
 
+  // async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  //   const file = e.target.files?.[0];
+  //   if (!file) return;
+
+  //   setUploading(true);
+
+  //   try {
+  //     const ext = file.name.split(".").pop() || "jpg";
+  //     const path = `chat/${crypto.randomUUID()}.${ext}`;
+
+  //     const { data, error } = await supabaseClient.storage
+  //       .from("chat-images")
+  //       .upload(path, file, {
+  //         cacheControl: "3600",
+  //         upsert: false,
+  //         contentType: file.type,
+  //       });
+
+  //     if (error) {
+  //       throw new Error(error.message);
+  //     }
+
+  //     if (!data) {
+  //       throw new Error("Upload returned no data");
+  //     }
+
+  //     const { data: pub } = supabaseClient.storage
+  //       .from("chat-images")
+  //       .getPublicUrl(data.path);
+
+  //     setPendingImageUrl(pub.publicUrl);
+  //   } catch (err: any) {
+  //     console.error("Upload failed FULL:", err);
+  //     alert(JSON.stringify(err, null, 2));
+  //   } finally {
+  //     setUploading(false);
+  //   }
+  // }
+
   useAutoResume({
     autoResume,
     initialMessages,
@@ -186,13 +240,6 @@ export function Chat({
           selectedVisibilityType={initialVisibilityType}
         />
 
-        {/* 搜索来源提示 */}
-        {sourcesState?.used_search && (
-          <div className="mx-auto w-full max-w-4xl px-2 text-xs text-blue-500">
-            Answer based on live web search
-          </div>
-        )}
-
         {sourcesState?.used_search && (
           <div className="mx-auto w-full max-w-4xl px-2">
             <SourcesButton />
@@ -206,6 +253,7 @@ export function Chat({
           isReadonly={isReadonly}
           messages={messages}
           regenerate={regenerate}
+          // ✅ 用 currentModelId（否则切模型 UI 显示会不对）
           selectedModelId={currentModelId}
           setMessages={setMessages}
           status={status}
@@ -215,21 +263,7 @@ export function Chat({
         <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
           {!isReadonly && (
             <div className="flex w-full flex-col gap-2">
-              {/* 🔍 Search Button */}
-              <div className="flex items-center gap-2">
-                <button
-                  className="rounded border px-2 py-1 text-xs hover:bg-gray-100"
-                  onClick={() => {
-                    setForceSearchNext(true);
-                    toast({
-                      type: "info",
-                      description: "Next reply will use web search",
-                    });
-                  }}
-                >
-                  🔍 Search
-                </button>
-              </div>
+              <div className="flex items-center gap-2" />
 
               <MultimodalInput
                 attachments={attachments}
