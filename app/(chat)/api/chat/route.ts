@@ -253,6 +253,19 @@ function mustSearch(userText: string) {
   return keywords.some((k) => t.includes(k));
 }
 
+function extractVIN(text: string): string | null {
+  const match = text.match(/\b[A-HJ-NPR-Z0-9]{17}\b/);
+  return match ? match[0] : null;
+}
+
+async function decodeVIN(vin: string) {
+  const res = await fetch(
+    `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${vin}?format=json`
+  );
+  const data = await res.json();
+  return data.Results?.[0];
+}
+
 /* =========================
    POST
 ========================= */
@@ -334,6 +347,16 @@ export async function POST(request: Request) {
 
     const forceSearch = mustSearch(userText);
     // const forceSearch = true;
+    const vin = extractVIN(userText);
+
+    let vinContext = "";
+    if (vin) {
+      const vinData = await decodeVIN(vin);
+      vinContext = `
+  VEHICLE DECODE (NHTSA):
+  ${JSON.stringify(vinData, null, 2)}
+  `;
+    }
 
     let searchContext = "";
     if (forceSearch) {
@@ -391,6 +414,7 @@ export async function POST(request: Request) {
           model: getLanguageModel(selectedChatModel),
           system:
             systemPrompt({ requestHints }) +
+            vinContext +
             `
             SEARCH_MODE: ${forceSearch ? "ON" : "OFF"}
 
